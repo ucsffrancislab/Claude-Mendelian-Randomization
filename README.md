@@ -63,7 +63,7 @@ Post process ...
 
 sbatch --mail-user=$(tail -1 ~/.forward) --mail-type=FAIL --time=14-0 --export=None \
   --job-name=post --ntasks=1 --cpus-per-task=64 --mem=490G  --output="mr_postprocessing.log" \
-  --wrap="module load r plink; ~/github/ucsffrancislab/Claude-Operon-Mendelian-Randomization/mr_postprocessing.R"
+  --wrap="module load r plink; mr_postprocessing.R"
 
 ```
 
