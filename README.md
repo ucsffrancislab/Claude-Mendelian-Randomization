@@ -1,7 +1,7 @@
 
-# Claude-Operon-Mendelian-Randomization
+# Claude-Mendelian-Randomization
 
-Developed on Claude Operon
+Developed on Claude
 
 
 Download select reference files...
