@@ -69,3 +69,16 @@ sbatch --mail-user=$(tail -1 ~/.forward) --mail-type=FAIL --time=14-0 --export=N
 
 
 
+
+
+
+HLA Sensitivity ...
+
+```bash
+
+sbatch --mail-user=$(tail -1 ~/.forward) --mail-type=FAIL --time=14-0 --export=None \
+  --job-name=hla_sensitivity --ntasks=1 --cpus-per-task=64 --mem=490G  --output="run_hla_sensitivity.log" \
+  --wrap="module load r plink; run_hla_sensitivity.R"
+
+```
+
