@@ -95,8 +95,12 @@ local_clump <- function(dat, snp_col = "SNP", pval_col = "pval.exposure") {
   dat_df <- as.data.frame(dat)
   original_snps <- dat_df[[snp_col]]
 
-  # Detect SNP format and map to rsIDs if needed
-  is_rsid <- grepl("^rs", original_snps[1])
+  # Detect SNP format — check ALL SNPs, not just the first one
+  # FIX: Original checked only first SNP. If the first SNP happened to be
+  # chr:pos format but most were rsIDs (or vice versa), the wrong branch ran.
+  # For PGS001458 this caused 0/7170 SNPs to map, dropping the entire tract.
+  n_rsid <- sum(grepl("^rs", original_snps))
+  is_rsid <- n_rsid > length(original_snps) * 0.5  # majority are rsIDs
 
   if (!is_rsid) {
     # Extract chr:pos from formats like "1:752721" or "1:752721:A:G"
@@ -187,6 +191,16 @@ run_single_mr <- function(exposure_dat, outcome_dat, pgs_id, subtype, direction)
   result$het <- tryCatch(mr_heterogeneity(harmonised), error = function(e) NULL)
   result$pleio <- tryCatch(mr_pleiotropy_test(harmonised), error = function(e) NULL)
   result$steiger <- tryCatch(directionality_test(harmonised), error = function(e) NULL)
+
+  # AUDIT FIX: Calculate F-statistics for instrument strength
+  # F = (beta/se)^2 for each instrument; mean F should be > 10
+  f_vals <- (harmonised$beta.exposure[harmonised$mr_keep] /
+             harmonised$se.exposure[harmonised$mr_keep])^2
+  result$f_stats <- data.frame(
+    mean_F = mean(f_vals), median_F = median(f_vals),
+    min_F = min(f_vals), n_weak = sum(f_vals < 10),
+    n_instruments = length(f_vals)
+  )
 
   return(result)
 }
@@ -379,7 +393,8 @@ message("  Reverse MR complete.\n")
 message("=== STEP 4: Saving results ===\n")
 
 collect_results <- function(raw_list, direction_label) {
-  mr_list <- list(); het_list <- list(); pleio_list <- list(); steiger_list <- list()
+  mr_list <- list(); het_list <- list(); pleio_list <- list()
+  steiger_list <- list(); fstat_list <- list()  # AUDIT FIX: added F-stats
   for (res in raw_list) {
     if (is.null(res) || !is.list(res)) next
     if (!is.null(res$error)) { message("    Skipped: ", res$error); next }
@@ -388,11 +403,13 @@ collect_results <- function(raw_list, direction_label) {
     if (!is.null(res$het))     { tmp <- res$het;     tmp$pgs_id <- pgs_id; tmp$subtype <- subtype; het_list <- c(het_list, list(tmp)) }
     if (!is.null(res$pleio))   { tmp <- res$pleio;   tmp$pgs_id <- pgs_id; tmp$subtype <- subtype; pleio_list <- c(pleio_list, list(tmp)) }
     if (!is.null(res$steiger)) { tmp <- res$steiger; tmp$pgs_id <- pgs_id; tmp$subtype <- subtype; steiger_list <- c(steiger_list, list(tmp)) }
+    if (!is.null(res$f_stats)) { tmp <- res$f_stats; tmp$pgs_id <- pgs_id; tmp$subtype <- subtype; tmp$direction <- direction_label; fstat_list <- c(fstat_list, list(tmp)) }
   }
   list(mr = if (length(mr_list) > 0) bind_rows(mr_list) else NULL,
        het = if (length(het_list) > 0) bind_rows(het_list) else NULL,
        pleio = if (length(pleio_list) > 0) bind_rows(pleio_list) else NULL,
-       steiger = if (length(steiger_list) > 0) bind_rows(steiger_list) else NULL)
+       steiger = if (length(steiger_list) > 0) bind_rows(steiger_list) else NULL,
+       f_stats = if (length(fstat_list) > 0) bind_rows(fstat_list) else NULL)
 }
 
 fwd <- collect_results(forward_raw, "forward_ICVF_to_glioma")
@@ -400,11 +417,14 @@ if (!is.null(fwd$mr))      fwrite(fwd$mr,      file.path(OUTPUT_DIR, "forward_mr
 if (!is.null(fwd$het))     fwrite(fwd$het,     file.path(OUTPUT_DIR, "forward_heterogeneity.tsv"), sep = "\t")
 if (!is.null(fwd$pleio))   fwrite(fwd$pleio,   file.path(OUTPUT_DIR, "forward_pleiotropy.tsv"), sep = "\t")
 if (!is.null(fwd$steiger)) fwrite(fwd$steiger, file.path(OUTPUT_DIR, "forward_steiger.tsv"), sep = "\t")
+if (!is.null(fwd$f_stats)) fwrite(fwd$f_stats, file.path(OUTPUT_DIR, "forward_f_statistics.tsv"), sep = "\t")  # AUDIT FIX: added
 
 rev <- collect_results(reverse_raw, "reverse_glioma_to_ICVF")
-if (!is.null(rev$mr))    fwrite(rev$mr,    file.path(OUTPUT_DIR, "reverse_mr_results.tsv"), sep = "\t")
-if (!is.null(rev$het))   fwrite(rev$het,   file.path(OUTPUT_DIR, "reverse_heterogeneity.tsv"), sep = "\t")
-if (!is.null(rev$pleio)) fwrite(rev$pleio, file.path(OUTPUT_DIR, "reverse_pleiotropy.tsv"), sep = "\t")
+if (!is.null(rev$mr))      fwrite(rev$mr,      file.path(OUTPUT_DIR, "reverse_mr_results.tsv"), sep = "\t")
+if (!is.null(rev$het))     fwrite(rev$het,     file.path(OUTPUT_DIR, "reverse_heterogeneity.tsv"), sep = "\t")
+if (!is.null(rev$pleio))   fwrite(rev$pleio,   file.path(OUTPUT_DIR, "reverse_pleiotropy.tsv"), sep = "\t")
+if (!is.null(rev$steiger)) fwrite(rev$steiger, file.path(OUTPUT_DIR, "reverse_steiger.tsv"), sep = "\t")  # AUDIT FIX: was missing
+if (!is.null(rev$f_stats)) fwrite(rev$f_stats, file.path(OUTPUT_DIR, "reverse_f_statistics.tsv"), sep = "\t")  # AUDIT FIX: added
 
 if (!is.null(fwd$mr) && !is.null(rev$mr)) {
   combined <- bind_rows(fwd$mr, rev$mr)
@@ -447,7 +467,7 @@ if (!is.null(fwd$mr)) {
         BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
         SdOutcome = "se.outcome", SdExposure = "se.exposure",
         data = harm_keep, OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
-        NbDistribution = 1000, SignifThreshold = 0.05
+        NbDistribution = 10000, SignifThreshold = 0.05  # AUDIT FIX: was 1000, too few for stable p-values
       )
       presso_results <- c(presso_results, list(data.frame(
         pgs_id = pgs_id, subtype = subtype,
