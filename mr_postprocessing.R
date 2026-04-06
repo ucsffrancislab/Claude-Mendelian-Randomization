@@ -13,11 +13,22 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 
+# --- Command-line arguments ---
+# Usage: Rscript script.R [--output-dir /path/to/output]
+args <- commandArgs(trailingOnly = TRUE)
+.output_dir_override <- NULL
+if (length(args) >= 2) {
+  for (i in seq_len(length(args) - 1)) {
+    if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+  }
+}
+
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-RESULTS_DIR <- "mr_results"
+RESULTS_DIR <- if (!is.null(.output_dir_override)) .output_dir_override else "mr_results"
 OUTPUT_DIR  <- file.path(RESULTS_DIR, "interpretation")
 dir.create(OUTPUT_DIR, showWarnings = FALSE)
 

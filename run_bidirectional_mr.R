@@ -20,6 +20,17 @@ library(ggplot2)
 library(dplyr)
 library(parallel)
 
+# --- Command-line arguments ---
+# Usage: Rscript script.R [--output-dir /path/to/output]
+args <- commandArgs(trailingOnly = TRUE)
+.output_dir_override <- NULL
+if (length(args) >= 2) {
+  for (i in seq_len(length(args) - 1)) {
+    if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+  }
+}
+
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -66,7 +77,7 @@ GLIOMA_FILES <- c(
   "idhmt_codel/final/IDHmut_1p19q_codel_meta_summary_stats.tsv.gz"
 )
 
-OUTPUT_DIR <- "mr_results"
+OUTPUT_DIR <- if (!is.null(.output_dir_override)) .output_dir_override else "mr_results"
 dir.create(OUTPUT_DIR, showWarnings = FALSE)
 dir.create(file.path(OUTPUT_DIR, "plots"), showWarnings = FALSE)
 

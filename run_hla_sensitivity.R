@@ -12,6 +12,17 @@ library(ggplot2)
 library(dplyr)
 library(parallel)
 
+# --- Command-line arguments ---
+# Usage: Rscript script.R [--output-dir /path/to/output]
+args <- commandArgs(trailingOnly = TRUE)
+.output_dir_override <- NULL
+if (length(args) >= 2) {
+  for (i in seq_len(length(args) - 1)) {
+    if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+  }
+}
+
+
 # =============================================================================
 # CONFIGURATION (same as main script)
 # =============================================================================
@@ -31,7 +42,7 @@ LD_REF_PATH <- "/francislab/data1/refs/sources/fileserve.mrcieu.ac.uk/ld/EUR"
 PLINK_BIN <- tryCatch(genetics.binaRies::get_plink_binary(),
   error = function(e) { p <- Sys.which("plink"); if (nchar(p) > 0) p else Sys.which("plink1.9") })
 
-OUTPUT_DIR <- "mr_results/hla_excluded"
+OUTPUT_DIR <- file.path(if (!is.null(.output_dir_override)) .output_dir_override else "mr_results", "hla_excluded")
 dir.create(OUTPUT_DIR, showWarnings = FALSE)
 
 MIN_INSTRUMENTS <- 3
