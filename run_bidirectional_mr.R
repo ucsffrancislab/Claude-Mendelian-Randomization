@@ -474,21 +474,39 @@ if (!is.null(fwd$mr)) {
     message("  MR-PRESSO: ", pgs_id, " -> ", subtype, " (", nrow(harm_keep), " SNPs)")
 
     tryCatch({
-      presso <- mr_presso(
+      # Step 1: Run global test ONLY (avoids MRPRESSO package bug with outlier results)
+      presso_global <- mr_presso(
         BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
         SdOutcome = "se.outcome", SdExposure = "se.exposure",
-        data = harm_keep, OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
-        NbDistribution = 10000, SignifThreshold = 0.05  # AUDIT FIX: was 1000, too few for stable p-values
+        data = as.data.frame(harm_keep),
+        OUTLIERtest = FALSE, DISTORTIONtest = FALSE,
+        NbDistribution = 10000, SignifThreshold = 0.05
       )
-      # Extract results safely — MRPRESSO errors when no outliers are found
-      global_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue, error = function(e) NA)
-      main_res <- tryCatch(presso[[1]]$`Main MR results`, error = function(e) NULL)
-      causal_raw <- NA; causal_corrected <- NA
-      if (!is.null(main_res) && nrow(main_res) >= 1) causal_raw <- main_res$`Causal Estimate`[1]
-      if (!is.null(main_res) && nrow(main_res) >= 2) causal_corrected <- main_res$`Causal Estimate`[2]
-      outlier_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue, error = function(e) NULL)
-      n_outliers <- if (!is.null(outlier_p)) sum(outlier_p < 0.05, na.rm = TRUE) else 0
-      distortion_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+      global_p <- tryCatch(presso_global[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue, error = function(e) NA)
+      main_res <- tryCatch(presso_global[[1]]$`Main MR results`, error = function(e) NULL)
+      causal_raw <- if (!is.null(main_res) && nrow(main_res) >= 1) main_res$`Causal Estimate`[1] else NA
+
+      # Step 2: Only run outlier detection if global test is significant
+      n_outliers <- 0; causal_corrected <- NA; distortion_p <- NA
+      if (!is.na(global_p) && global_p < 0.05) {
+        message("    Global test significant -- running outlier detection...")
+        presso_full <- tryCatch(
+          mr_presso(
+            BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
+            SdOutcome = "se.outcome", SdExposure = "se.exposure",
+            data = as.data.frame(harm_keep),
+            OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
+            NbDistribution = 10000, SignifThreshold = 0.05
+          ), error = function(e) { message("    Outlier test error: ", e$message); NULL }
+        )
+        if (!is.null(presso_full)) {
+          outlier_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue, error = function(e) NULL)
+          n_outliers <- if (!is.null(outlier_p)) sum(outlier_p < 0.05, na.rm = TRUE) else 0
+          main_full <- tryCatch(presso_full[[1]]$`Main MR results`, error = function(e) NULL)
+          if (!is.null(main_full) && nrow(main_full) >= 2) causal_corrected <- main_full$`Causal Estimate`[2]
+          distortion_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+        }
+      }
 
       presso_results <- c(presso_results, list(data.frame(
         pgs_id = pgs_id, subtype = subtype,
