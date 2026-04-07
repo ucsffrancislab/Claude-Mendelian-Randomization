@@ -480,15 +480,23 @@ if (!is.null(fwd$mr)) {
         data = harm_keep, OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
         NbDistribution = 10000, SignifThreshold = 0.05  # AUDIT FIX: was 1000, too few for stable p-values
       )
+      # Extract results safely — MRPRESSO errors when no outliers are found
+      global_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue, error = function(e) NA)
+      main_res <- tryCatch(presso[[1]]$`Main MR results`, error = function(e) NULL)
+      causal_raw <- NA; causal_corrected <- NA
+      if (!is.null(main_res) && nrow(main_res) >= 1) causal_raw <- main_res$`Causal Estimate`[1]
+      if (!is.null(main_res) && nrow(main_res) >= 2) causal_corrected <- main_res$`Causal Estimate`[2]
+      outlier_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue, error = function(e) NULL)
+      n_outliers <- if (!is.null(outlier_p)) sum(outlier_p < 0.05, na.rm = TRUE) else 0
+      distortion_p <- tryCatch(presso[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+
       presso_results <- c(presso_results, list(data.frame(
         pgs_id = pgs_id, subtype = subtype,
-        global_p = presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue,
-        n_outliers = sum(presso[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue < 0.05, na.rm = TRUE),
-        causal_raw = presso[[1]]$`Main MR results`$`Causal Estimate`[1],
-        causal_corrected = presso[[1]]$`Main MR results`$`Causal Estimate`[2],
-        distortion_p = tryCatch(presso[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+        global_p = global_p, n_outliers = n_outliers,
+        causal_raw = causal_raw, causal_corrected = causal_corrected,
+        distortion_p = distortion_p
       )))
-      message("    Global test p = ", presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue)
+      message("    Global p = ", global_p, ", outliers = ", n_outliers)
     }, error = function(e) {
       message("    Failed: ", e$message)
     })
