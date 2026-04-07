@@ -139,7 +139,7 @@ for (i in seq_along(GLIOMA_SUBTYPES)) {
   if (!file.exists(fpath)) next
   dat <- fread(fpath, header = TRUE); dat <- as.data.frame(dat)
   dat$N <- dat$N_CASES + dat$N_CONTROLS
-  dat$SNP_chrpos <- paste0(dat$CHR, ":", dat$BP)
+  dat$SNP_chrpos <- paste0(as.integer(dat$CHR), ":", dat$BP)
   out <- format_data(dat, type = "outcome",
     snp_col = "SNP_chrpos", beta_col = "BETA", se_col = "SE", pval_col = "P",
     effect_allele_col = "A1", other_allele_col = "A2", eaf_col = "A1_FREQ",
@@ -163,7 +163,7 @@ for (inst_file in instrument_files) {
 
   # Convert to chr:pos
   if ("chr.exposure" %in% names(clumped) & "pos.exposure" %in% names(clumped)) {
-    clumped$SNP <- paste0(clumped$chr.exposure, ":", clumped$pos.exposure)
+    clumped$SNP <- paste0(as.integer(clumped$chr.exposure), ":", clumped$pos.exposure)
   }
 
   # EXCLUDE HLA

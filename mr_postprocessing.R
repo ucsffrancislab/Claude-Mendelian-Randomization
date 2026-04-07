@@ -392,7 +392,7 @@ if (file.exists(presso_file)) {
     dat <- fread(fpath, header = TRUE)
     dat <- as.data.frame(dat)
     dat$N <- dat$N_CASES + dat$N_CONTROLS
-    dat$SNP_chrpos <- paste0(dat$CHR, ":", dat$BP)
+    dat$SNP_chrpos <- paste0(as.integer(dat$CHR), ":", dat$BP)
     out <- format_data(dat, type = "outcome",
       snp_col = "SNP_chrpos", beta_col = "BETA", se_col = "SE", pval_col = "P",
       effect_allele_col = "A1", other_allele_col = "A2", eaf_col = "A1_FREQ",
@@ -415,7 +415,7 @@ if (file.exists(presso_file)) {
     exposure_dat <- fread(inst_file[1], header = TRUE)
     exposure_dat <- as.data.frame(exposure_dat)
     if ("chr.exposure" %in% names(exposure_dat) & "pos.exposure" %in% names(exposure_dat)) {
-      exposure_dat$SNP <- paste0(exposure_dat$chr.exposure, ":", exposure_dat$pos.exposure)
+      exposure_dat$SNP <- paste0(as.integer(exposure_dat$chr.exposure), ":", exposure_dat$pos.exposure)
     }
 
     outcome_dat <- glioma_outcomes[[subtype]]

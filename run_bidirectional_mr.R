@@ -226,7 +226,7 @@ load_glioma <- function(filepath, subtype_name, type = "outcome") {
   dat <- fread(filepath, header = TRUE)
   dat <- as.data.frame(dat)
   dat$N <- dat$N_CASES + dat$N_CONTROLS
-  dat$SNP_chrpos <- paste0(dat$CHR, ":", dat$BP)
+  dat$SNP_chrpos <- paste0(as.integer(dat$CHR), ":", dat$BP)
 
   formatted <- format_data(dat, type = type,
     snp_col = "SNP_chrpos", beta_col = "BETA", se_col = "SE", pval_col = "P",
@@ -276,7 +276,7 @@ for (inst_file in instrument_files) {
   if (nrow(clumped) >= MIN_INSTRUMENTS) {
     # Convert rsID -> chr:pos for harmonisation with glioma
     if ("chr.exposure" %in% names(clumped) & "pos.exposure" %in% names(clumped)) {
-      clumped$SNP <- paste0(clumped$chr.exposure, ":", clumped$pos.exposure)
+      clumped$SNP <- paste0(as.integer(clumped$chr.exposure), ":", clumped$pos.exposure)
     }
     clumped_exposures[[inst_file]] <- clumped
     message("    ", pgs_id, ": ", nrow(clumped), " instruments after clumping")
@@ -359,7 +359,7 @@ for (icvf_file in icvf_full_files) {
   icvf_dat <- as.data.frame(icvf_dat)
 
   if ("chr.exposure" %in% names(icvf_dat) & "pos.exposure" %in% names(icvf_dat)) {
-    icvf_dat$SNP_chrpos <- paste0(icvf_dat$chr.exposure, ":", icvf_dat$pos.exposure)
+    icvf_dat$SNP_chrpos <- paste0(as.integer(icvf_dat$chr.exposure), ":", icvf_dat$pos.exposure)
   }
 
   icvf_out <- format_data(icvf_dat, type = "outcome",
