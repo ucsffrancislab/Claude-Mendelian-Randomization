@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # Download FA, MD, ISOVF, OD GWAS Summary Statistics from Oxford BIG40
 # For multivariable MR alongside ICVF
