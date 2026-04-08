@@ -82,3 +82,24 @@ sbatch --mail-user=$(tail -1 ~/.forward) --mail-type=FAIL --time=14-0 --export=N
 
 ```
 
+
+
+
+
+##	MVMR
+
+
+```bash
+
+
+# 1. Download (takes a while — 72 files × ~344 MB each)
+bash download_mvmr_sumstats.sh
+
+# 2. Format (needs the mapping CSV in the same directory)
+Rscript format_mvmr_for_mr.R
+
+
+```
+
+
+
