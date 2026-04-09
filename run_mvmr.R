@@ -121,6 +121,29 @@ local_clump <- function(dat, snp_col = "SNP", pval_col = "pval.exposure") {
 # STEP 1: Build tract-to-file mapping
 # =============================================================================
 
+
+# Tract name lookup: ICVF filename format → mapping CSV format
+tract_name_lookup <- c(
+  "body_corpus_callosum" = "Body_of_corpus_callosum",
+  "cerebral_peduncle_(R)" = "Cerebral_peduncle_R",
+  "cingulum_cingulate_gyrus_(L)" = "Cingulum_cingulate_gyrus_L",
+  "cingulum_cingulate_gyrus_(R)" = "Cingulum_cingulate_gyrus_R",
+  "cingulum_hippocampus_(L)" = "Cingulum_hippocampus_L",
+  "cingulum_hippocampus_(R)" = "Cingulum_hippocampus_R",
+  "genu_corpus_callosum" = "Genu_of_corpus_callosum",
+  "middle_cerebellar_peduncle" = "Middle_cerebellar_peduncle",
+  "posterior_limb_int_capsule_(L)" = "Posterior_limb_of_internal_capsule_L",
+  "retrolenticular_int_capsule_(L)" = "Retrolenticular_part_of_internal_capsule_L",
+  "retrolenticular_int_capsule_(R)" = "Retrolenticular_part_of_internal_capsule_R",
+  "sagittal_stratum_(L)" = "Sagittal_stratum_L",
+  "sagittal_stratum_(R)" = "Sagittal_stratum_R",
+  "superior_corona_radiata_(L)" = "Superior_corona_radiata_L",
+  "superior_corona_radiata_(R)" = "Superior_corona_radiata_R",
+  "acoustic_radiation_(R)" = "ar_r",
+  "forceps_major" = "fma",
+  "parahippocampal_cingulum_(R)" = "cgh_r"
+)
+
 message("\n=== STEP 1: Building tract-to-file mapping ===\n")
 
 # Load the additional metrics mapping
@@ -139,21 +162,19 @@ for (icvf_file in icvf_files) {
   tract <- sub("_mr_ready\\.tsv\\.gz$", "", basename(icvf_file))
   tract <- sub("^PGS\\d+_", "", tract)
 
-  # Find matching rows in mvmr_map for this tract
-  # Need to match tract names between ICVF files and the mapping
-  # ICVF file tract: "ICVF_body_corpus_callosum" -> "body_corpus_callosum"  
+  # Map ICVF filename tract name to the mapping CSV tract name
   tract_clean <- sub("^ICVF_", "", tract)
-
-  # Find matching rows in mapping (case-insensitive)
-  map_matches <- mvmr_map[tolower(mvmr_map$tract) == tolower(tract_clean), ]
-
-  if (nrow(map_matches) == 0) {
-    # Try partial match
-    map_matches <- mvmr_map[grepl(tolower(tract_clean), tolower(mvmr_map$tract), fixed = TRUE), ]
+  
+  if (tract_clean %in% names(tract_name_lookup)) {
+    tract_mapped <- tract_name_lookup[[tract_clean]]
+  } else {
+    tract_mapped <- tract_clean
   }
 
+  map_matches <- mvmr_map[mvmr_map$tract == tract_mapped, ]
+
   if (nrow(map_matches) == 0) {
-    message("  WARNING: No mapping found for tract: ", tract_clean)
+    message("  WARNING: No mapping found for tract: ", tract_clean, " (tried: ", tract_mapped, ")")
     next
   }
 
