@@ -16,9 +16,13 @@ library(parallel)
 # Usage: Rscript script.R [--output-dir /path/to/output]
 args <- commandArgs(trailingOnly = TRUE)
 .output_dir_override <- NULL
+.glioma_dir_override <- NULL
+.ncores_override <- NULL
 if (length(args) >= 2) {
   for (i in seq_len(length(args) - 1)) {
     if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+    if (args[i] == "--glioma-dir") .glioma_dir_override <- args[i + 1]
+    if (args[i] == "--ncores") .ncores_override <- as.integer(args[i + 1])
   }
 }
 
@@ -28,7 +32,7 @@ if (length(args) >= 2) {
 # =============================================================================
 
 ICVF_DIR   <- "icvf_mr_ready"
-GLIOMA_DIR <- "../20260326-GWAS_summary_stats/20260330a-results"
+GLIOMA_DIR <- if (!is.null(.glioma_dir_override)) .glioma_dir_override else "../20260326-GWAS_summary_stats/20260330a-results"
 GLIOMA_SUBTYPES <- c("all_glioma", "idhwt", "idhmt", "idhmt_intact", "idhmt_codel")
 GLIOMA_FILES <- c(
   "all_glioma/final/all_glioma_meta_summary_stats.tsv.gz",

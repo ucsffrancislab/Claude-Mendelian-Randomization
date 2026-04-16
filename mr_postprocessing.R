@@ -17,9 +17,13 @@ library(tidyr)
 # Usage: Rscript script.R [--output-dir /path/to/output]
 args <- commandArgs(trailingOnly = TRUE)
 .output_dir_override <- NULL
+.glioma_dir_override <- NULL
+.ncores_override <- NULL
 if (length(args) >= 2) {
   for (i in seq_len(length(args) - 1)) {
     if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+    if (args[i] == "--glioma-dir") .glioma_dir_override <- args[i + 1]
+    if (args[i] == "--ncores") .ncores_override <- as.integer(args[i + 1])
   }
 }
 
@@ -375,7 +379,7 @@ if (file.exists(presso_file)) {
   library(TwoSampleMR)
 
   ICVF_DIR   <- "icvf_mr_ready"
-  GLIOMA_DIR <- "../20260326-GWAS_summary_stats/20260330a-results"
+  GLIOMA_DIR <- if (!is.null(.glioma_dir_override)) .glioma_dir_override else "../20260326-GWAS_summary_stats/20260330a-results"
   GLIOMA_FILES <- c(
     all_glioma   = "all_glioma/final/all_glioma_meta_summary_stats.tsv.gz",
     idhwt        = "idhwt/final/IDHwt_meta_summary_stats.tsv.gz",
