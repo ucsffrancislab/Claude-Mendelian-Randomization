@@ -96,7 +96,7 @@ CLUMP_KB        <- 10000
 # Memory-aware core limit: each mclapply fork copies the parent process memory
 # With 5 glioma outcomes loaded (~2GB each), each fork needs ~10-15GB
 # Default: min(available_cores - 1, floor(total_memory_GB / 15), 60)
-.mem_gb <- as.numeric(system("awk '/MemTotal/{printf "%.0f", $2/1024/1024}' /proc/meminfo", intern = TRUE))
+.mem_gb <- tryCatch({ mi <- readLines("/proc/meminfo", n = 1); as.numeric(sub(".*:\\s+(\\d+).*", "\\1", mi)) / 1024 / 1024 }, error = function(e) NA)
 .mem_cores <- if (!is.na(.mem_gb)) max(4, floor(.mem_gb / 15)) else 16
 N_CORES <- if (!is.null(.ncores_override)) .ncores_override else min(detectCores() - 1, .mem_cores, 60)
 message("Using ", N_CORES, " cores for parallel execution")

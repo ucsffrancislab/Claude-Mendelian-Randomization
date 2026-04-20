@@ -52,7 +52,10 @@ dir.create(OUTPUT_DIR, showWarnings = FALSE)
 MIN_INSTRUMENTS <- 3
 CLUMP_R2  <- 0.001
 CLUMP_KB  <- 10000
-N_CORES   <- min(detectCores() - 1, 60)
+# Memory-aware core limit: each mclapply fork copies the parent process memory
+.mem_gb <- tryCatch({ mi <- readLines("/proc/meminfo", n = 1); as.numeric(sub(".*:\\s+(\\d+).*", "\\1", mi)) / 1024 / 1024 }, error = function(e) NA)
+.mem_cores <- if (!is.na(.mem_gb)) max(4, floor(.mem_gb / 15)) else 16
+N_CORES <- if (!is.null(.ncores_override)) .ncores_override else min(detectCores() - 1, .mem_cores, 60)
 
 # HLA region definition (GRCh37)
 HLA_CHR   <- 6

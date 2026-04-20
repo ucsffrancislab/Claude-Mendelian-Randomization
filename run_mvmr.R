@@ -17,9 +17,13 @@ library(parallel)
 # --- Command-line arguments ---
 args <- commandArgs(trailingOnly = TRUE)
 .output_dir_override <- NULL
+.glioma_dir_override <- NULL
+.ncores_override <- NULL
 if (length(args) >= 2) {
   for (i in seq_len(length(args) - 1)) {
     if (args[i] == "--output-dir") .output_dir_override <- args[i + 1]
+    if (args[i] == "--glioma-dir") .glioma_dir_override <- args[i + 1]
+    if (args[i] == "--ncores") .ncores_override <- as.integer(args[i + 1])
   }
 }
 
@@ -30,7 +34,7 @@ if (length(args) >= 2) {
 # Data directories
 ICVF_DIR <- "icvf_mr_ready"
 MVMR_DIR <- "mvmr_mr_ready"
-GLIOMA_DIR <- "../20260326-GWAS_summary_stats/20260330a-results"
+GLIOMA_DIR <- if (!is.null(.glioma_dir_override)) .glioma_dir_override else "../20260326-GWAS_summary_stats/20260330a-results"
 MAPPING_FILE <- "mvmr_additional_metrics_mapping.csv"
 
 # LD reference
@@ -61,7 +65,12 @@ CLUMP_KB <- 10000
 SAMPLE_SIZE <- 33224
 
 # Parallelization
-N_CORES <- min(detectCores() - 1, 60)
+# Memory-aware core limit: each mclapply fork copies the parent process memory
+# With 5 glioma outcomes loaded (~2GB each), each fork needs ~10-15GB
+# Default: min(available_cores - 1, floor(total_memory_GB / 15), 60)
+.mem_gb <- tryCatch({ mi <- readLines("/proc/meminfo", n = 1); as.numeric(sub(".*:\\s+(\\d+).*", "\\1", mi)) / 1024 / 1024 }, error = function(e) NA)
+.mem_cores <- if (!is.na(.mem_gb)) max(4, floor(.mem_gb / 15)) else 16
+N_CORES <- if (!is.null(.ncores_override)) .ncores_override else min(detectCores() - 1, .mem_cores, 60)
 message("Using ", N_CORES, " cores")
 message("Plink: ", PLINK_BIN)
 message("LD ref: ", LD_REF_PATH)
