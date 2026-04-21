@@ -361,102 +361,111 @@ if (has_reverse) {
 }
 
 # =============================================================================
+# =========================================================================
+# STEP 7: MR-PRESSO — DISABLED
+# =========================================================================
+# See note in run_bidirectional_mr.R — the MRPRESSO package has an internal
+# bug that crashes inside mr_presso(). Pleiotropy is covered by MR-Egger
+# intercept and Cochran's Q. Uncomment to retry if the package is updated.
+# =========================================================================
+
 # STEP 7: MR-PRESSO retry (for forward, if not already done)
 # =============================================================================
 
-message("\n=== MR-PRESSO check ===")
+# message("\n=== MR-PRESSO check ===")
 
-presso_file <- file.path(RESULTS_DIR, "forward_mrpresso.tsv")
-if (file.exists(presso_file)) {
-  message("  MR-PRESSO results already exist — skipping")
-  presso_df <- fread(presso_file)
-  message("  ", nrow(presso_df), " MR-PRESSO results loaded")
-} else {
-  message("  No MR-PRESSO results found — running now (sequential)")
-  message("  This may take several minutes...\n")
+# presso_file <- file.path(RESULTS_DIR, "forward_mrpresso.tsv")
+# if (file.exists(presso_file)) {
+#   message("  MR-PRESSO results already exist — skipping")
+#   presso_df <- fread(presso_file)
+#   message("  ", nrow(presso_df), " MR-PRESSO results loaded")
+# } else {
+#   message("  No MR-PRESSO results found — running now (sequential)")
+#   message("  This may take several minutes...\n")
 
-  library(MRPRESSO)
-  library(TwoSampleMR)
+#   library(MRPRESSO)
+#   library(TwoSampleMR)
 
-  ICVF_DIR   <- "icvf_mr_ready"
-  GLIOMA_DIR <- if (!is.null(.glioma_dir_override)) .glioma_dir_override else "../20260326-GWAS_summary_stats/20260330a-results"
-  GLIOMA_FILES <- c(
-    all_glioma   = "all_glioma/final/all_glioma_meta_summary_stats.tsv.gz",
-    idhwt        = "idhwt/final/IDHwt_meta_summary_stats.tsv.gz",
-    idhmt        = "idhmt/final/IDHmut_meta_summary_stats.tsv.gz",
-    idhmt_intact = "idhmt_intact/final/IDHmut_1p19q_intact_meta_summary_stats.tsv.gz",
-    idhmt_codel  = "idhmt_codel/final/IDHmut_1p19q_codel_meta_summary_stats.tsv.gz"
-  )
+#   ICVF_DIR   <- "icvf_mr_ready"
+#   GLIOMA_DIR <- if (!is.null(.glioma_dir_override)) .glioma_dir_override else "../20260326-GWAS_summary_stats/20260330a-results"
+#   GLIOMA_FILES <- c(
+#     all_glioma   = "all_glioma/final/all_glioma_meta_summary_stats.tsv.gz",
+#     idhwt        = "idhwt/final/IDHwt_meta_summary_stats.tsv.gz",
+#     idhmt        = "idhmt/final/IDHmut_meta_summary_stats.tsv.gz",
+#     idhmt_intact = "idhmt_intact/final/IDHmut_1p19q_intact_meta_summary_stats.tsv.gz",
+#     idhmt_codel  = "idhmt_codel/final/IDHmut_1p19q_codel_meta_summary_stats.tsv.gz"
+#   )
 
   # Load glioma outcomes
-  glioma_outcomes <- list()
-  for (sub in names(GLIOMA_FILES)) {
-    fpath <- file.path(GLIOMA_DIR, GLIOMA_FILES[sub])
-    if (!file.exists(fpath)) next
-    dat <- fread(fpath, header = TRUE)
-    dat <- as.data.frame(dat)
-    dat$N <- dat$N_CASES + dat$N_CONTROLS
-    dat$SNP_chrpos <- paste0(as.integer(dat$CHR), ":", dat$BP)
-    out <- format_data(dat, type = "outcome",
-      snp_col = "SNP_chrpos", beta_col = "BETA", se_col = "SE", pval_col = "P",
-      effect_allele_col = "A1", other_allele_col = "A2", eaf_col = "A1_FREQ",
-      samplesize_col = "N", chr_col = "CHR", pos_col = "BP")
-    out$outcome <- sub
-    glioma_outcomes[[sub]] <- out
-  }
+#   glioma_outcomes <- list()
+#   for (sub in names(GLIOMA_FILES)) {
+#     fpath <- file.path(GLIOMA_DIR, GLIOMA_FILES[sub])
+#     if (!file.exists(fpath)) next
+#     dat <- fread(fpath, header = TRUE)
+#     dat <- as.data.frame(dat)
+#     dat$N <- dat$N_CASES + dat$N_CONTROLS
+#     dat$SNP_chrpos <- paste0(as.integer(dat$CHR), ":", dat$BP)
+#     out <- format_data(dat, type = "outcome",
+#       snp_col = "SNP_chrpos", beta_col = "BETA", se_col = "SE", pval_col = "P",
+#       effect_allele_col = "A1", other_allele_col = "A2", eaf_col = "A1_FREQ",
+#       samplesize_col = "N", chr_col = "CHR", pos_col = "BP")
+#     out$outcome <- sub
+#     glioma_outcomes[[sub]] <- out
+#   }
 
-  instrument_files <- list.files(ICVF_DIR, pattern = "_instruments_", full.names = TRUE)
-  sig_pairs <- fwd_combined %>% filter(nom_sig) %>% select(pgs_id, subtype)
-  presso_results <- list()
+#   instrument_files <- list.files(ICVF_DIR, pattern = "_instruments_", full.names = TRUE)
+#   sig_pairs <- fwd_combined %>% filter(nom_sig) %>% select(pgs_id, subtype)
+#   presso_results <- list()
 
-  for (row_i in seq_len(nrow(sig_pairs))) {
-    pgs_id  <- sig_pairs$pgs_id[row_i]
-    subtype <- sig_pairs$subtype[row_i]
+#   for (row_i in seq_len(nrow(sig_pairs))) {
+#     pgs_id  <- sig_pairs$pgs_id[row_i]
+#     subtype <- sig_pairs$subtype[row_i]
 
-    inst_file <- grep(pgs_id, instrument_files, value = TRUE)
-    if (length(inst_file) == 0) next
+#     inst_file <- grep(pgs_id, instrument_files, value = TRUE)
+#     if (length(inst_file) == 0) next
 
-    exposure_dat <- fread(inst_file[1], header = TRUE)
-    exposure_dat <- as.data.frame(exposure_dat)
-    if ("chr.exposure" %in% names(exposure_dat) & "pos.exposure" %in% names(exposure_dat)) {
-      exposure_dat$SNP <- paste0(as.integer(exposure_dat$chr.exposure), ":", exposure_dat$pos.exposure)
-    }
+#     exposure_dat <- fread(inst_file[1], header = TRUE)
+#     exposure_dat <- as.data.frame(exposure_dat)
+#     if ("chr.exposure" %in% names(exposure_dat) & "pos.exposure" %in% names(exposure_dat)) {
+#       exposure_dat$SNP <- paste0(as.integer(exposure_dat$chr.exposure), ":", exposure_dat$pos.exposure)
+#     }
 
-    outcome_dat <- glioma_outcomes[[subtype]]
-    if (is.null(outcome_dat)) next
+#     outcome_dat <- glioma_outcomes[[subtype]]
+#     if (is.null(outcome_dat)) next
 
-    harmonised <- tryCatch(harmonise_data(exposure_dat, outcome_dat, action = 2), error = function(e) NULL)
-    if (is.null(harmonised) || sum(harmonised$mr_keep) < 4) next
-    harm_keep <- harmonised[harmonised$mr_keep, ]
+#     harmonised <- tryCatch(harmonise_data(exposure_dat, outcome_dat, action = 2), error = function(e) NULL)
+#     if (is.null(harmonised) || sum(harmonised$mr_keep) < 4) next
+#     harm_keep <- harmonised[harmonised$mr_keep, ]
 
-    message("  MR-PRESSO: ", pgs_id, " -> ", subtype, " (", nrow(harm_keep), " SNPs)")
+#     message("  MR-PRESSO: ", pgs_id, " -> ", subtype, " (", nrow(harm_keep), " SNPs)")
 
-    tryCatch({
-      presso <- mr_presso(
-        BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
-        SdOutcome = "se.outcome", SdExposure = "se.exposure",
-        data = harm_keep, OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
-        NbDistribution = 1000, SignifThreshold = 0.05)
-      presso_results <- c(presso_results, list(data.frame(
-        pgs_id = pgs_id, subtype = subtype,
-        global_p = presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue,
-        n_outliers = sum(presso[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue < 0.05, na.rm = TRUE),
-        causal_raw = presso[[1]]$`Main MR results`$`Causal Estimate`[1],
-        causal_corrected = presso[[1]]$`Main MR results`$`Causal Estimate`[2],
-        distortion_p = tryCatch(presso[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
-      )))
-      message("    Global p = ", presso[[1]]$`MR-RESSO results`$`Global Test`$Pvalue)
-    }, error = function(e) message("    Failed: ", e$message))
-  }
+#     tryCatch({
+#       presso <- mr_presso(
+#         BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
+#         SdOutcome = "se.outcome", SdExposure = "se.exposure",
+#         data = harm_keep, OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
+#         NbDistribution = 1000, SignifThreshold = 0.05)
+#       presso_results <- c(presso_results, list(data.frame(
+#         pgs_id = pgs_id, subtype = subtype,
+#         global_p = presso[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue,
+#         n_outliers = sum(presso[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue < 0.05, na.rm = TRUE),
+#         causal_raw = presso[[1]]$`Main MR results`$`Causal Estimate`[1],
+#         causal_corrected = presso[[1]]$`Main MR results`$`Causal Estimate`[2],
+#         distortion_p = tryCatch(presso[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+#       )))
+#       message("    Global p = ", presso[[1]]$`MR-RESSO results`$`Global Test`$Pvalue)
+#     }, error = function(e) message("    Failed: ", e$message))
+#   }
 
-  if (length(presso_results) > 0) {
-    presso_df <- bind_rows(presso_results)
-    fwrite(presso_df, file.path(OUTPUT_DIR, "forward_mrpresso.tsv"), sep = "\t")
-    message("\n  Saved: forward_mrpresso.tsv")
-  }
-}
+#   if (length(presso_results) > 0) {
+#     presso_df <- bind_rows(presso_results)
+#     fwrite(presso_df, file.path(OUTPUT_DIR, "forward_mrpresso.tsv"), sep = "\t")
+#     message("\n  Saved: forward_mrpresso.tsv")
+#   }
+# }
 
 # =============================================================================
+
 # STEP 8: Final interpretation
 # =============================================================================
 

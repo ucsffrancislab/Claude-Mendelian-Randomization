@@ -15,7 +15,12 @@
 
 library(data.table)
 library(TwoSampleMR)
-library(MRPRESSO)
+# library(MRPRESSO)  # DISABLED: MRPRESSO package has an internal bug that crashes
+#   when constructing outlier-corrected results ("arguments imply differing
+#   number of rows: 1, 0" or "missing value where TRUE/FALSE needed").
+#   The bug is inside mr_presso() itself, not in our code.
+#   MR-Egger intercept + Cochran's Q provide equivalent pleiotropy detection.
+#   Uncomment if/when the MRPRESSO package fixes this issue.
 library(ggplot2)
 library(dplyr)
 library(parallel)
@@ -455,88 +460,107 @@ if (!is.null(fwd$mr) && !is.null(rev$mr)) {
 # STEP 5: MR-PRESSO (sequential — does not work in forked processes)
 # =============================================================================
 
-message("\n=== STEP 5: MR-PRESSO (sequential) ===")
-message("  Running for nominally significant forward IVW results only\n")
+# =========================================================================
+# STEP 5: MR-PRESSO — DISABLED
+# =========================================================================
+# The MRPRESSO R package (rondolab/MR-PRESSO) has an internal bug that
+# crashes with "arguments imply differing number of rows: 1, 0" or
+# "missing value where TRUE/FALSE needed" when constructing results.
+# This occurs inside mr_presso() before it returns — not fixable from
+# calling code. The bug triggers when the outlier test finds no outliers
+# and tries to create an NA placeholder row with cbind.data.frame().
+#
+# Pleiotropy detection is still covered by:
+#   - MR-Egger intercept test (in forward_pleiotropy.tsv)
+#   - Cochran's Q heterogeneity test (in forward_heterogeneity.tsv)
+#
+# To re-enable: uncomment library(MRPRESSO) above and the section below.
+# Monitor https://github.com/rondolab/MR-PRESSO for package updates.
+# =========================================================================
 
-if (!is.null(fwd$mr)) {
-  sig_ivw <- fwd$mr %>% filter(method == "Inverse variance weighted", pval < 0.05)
-  presso_results <- list()
+# message("\n=== STEP 5: MR-PRESSO (sequential) ===")
+# message("  Running for nominally significant forward IVW results only\n")
 
-  for (row_i in seq_len(nrow(sig_ivw))) {
-    pgs_id  <- sig_ivw$pgs_id[row_i]
-    subtype <- sig_ivw$subtype[row_i]
+# if (!is.null(fwd$mr)) {
+#   sig_ivw <- fwd$mr %>% filter(method == "Inverse variance weighted", pval < 0.05)
+#   presso_results <- list()
+
+#   for (row_i in seq_len(nrow(sig_ivw))) {
+#     pgs_id  <- sig_ivw$pgs_id[row_i]
+#     subtype <- sig_ivw$subtype[row_i]
 
     # Find matching clumped exposure
-    inst_match <- grep(pgs_id, names(clumped_exposures), value = TRUE)
-    if (length(inst_match) == 0) next
+#     inst_match <- grep(pgs_id, names(clumped_exposures), value = TRUE)
+#     if (length(inst_match) == 0) next
 
-    outcome_dat <- glioma_outcomes[[subtype]]
-    if (is.null(outcome_dat)) next
+#     outcome_dat <- glioma_outcomes[[subtype]]
+#     if (is.null(outcome_dat)) next
 
-    harmonised <- tryCatch(
-      harmonise_data(clumped_exposures[[inst_match[1]]], outcome_dat, action = 2),
-      error = function(e) NULL
-    )
-    if (is.null(harmonised) || sum(harmonised$mr_keep) < 4) next
-    harm_keep <- harmonised[harmonised$mr_keep, ]
+#     harmonised <- tryCatch(
+#       harmonise_data(clumped_exposures[[inst_match[1]]], outcome_dat, action = 2),
+#       error = function(e) NULL
+#     )
+#     if (is.null(harmonised) || sum(harmonised$mr_keep) < 4) next
+#     harm_keep <- harmonised[harmonised$mr_keep, ]
 
-    message("  MR-PRESSO: ", pgs_id, " -> ", subtype, " (", nrow(harm_keep), " SNPs)")
+#     message("  MR-PRESSO: ", pgs_id, " -> ", subtype, " (", nrow(harm_keep), " SNPs)")
 
-    tryCatch({
+#     tryCatch({
       # Step 1: Run global test ONLY (avoids MRPRESSO package bug with outlier results)
-      presso_global <- mr_presso(
-        BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
-        SdOutcome = "se.outcome", SdExposure = "se.exposure",
-        data = as.data.frame(harm_keep),
-        OUTLIERtest = FALSE, DISTORTIONtest = FALSE,
-        NbDistribution = 10000, SignifThreshold = 0.05
-      )
-      global_p <- tryCatch(presso_global[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue, error = function(e) NA)
-      main_res <- tryCatch(presso_global[[1]]$`Main MR results`, error = function(e) NULL)
-      causal_raw <- if (!is.null(main_res) && nrow(main_res) >= 1) main_res$`Causal Estimate`[1] else NA
+#       presso_global <- mr_presso(
+#         BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
+#         SdOutcome = "se.outcome", SdExposure = "se.exposure",
+#         data = as.data.frame(harm_keep),
+#         OUTLIERtest = FALSE, DISTORTIONtest = FALSE,
+#         NbDistribution = 10000, SignifThreshold = 0.05
+#       )
+#       global_p <- tryCatch(presso_global[[1]]$`MR-PRESSO results`$`Global Test`$Pvalue, error = function(e) NA)
+#       main_res <- tryCatch(presso_global[[1]]$`Main MR results`, error = function(e) NULL)
+#       causal_raw <- if (!is.null(main_res) && nrow(main_res) >= 1) main_res$`Causal Estimate`[1] else NA
 
       # Step 2: Only run outlier detection if global test is significant
-      n_outliers <- 0; causal_corrected <- NA; distortion_p <- NA
-      if (!is.na(global_p) && global_p < 0.05) {
-        message("    Global test significant -- running outlier detection...")
-        presso_full <- tryCatch(
-          mr_presso(
-            BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
-            SdOutcome = "se.outcome", SdExposure = "se.exposure",
-            data = as.data.frame(harm_keep),
-            OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
-            NbDistribution = 10000, SignifThreshold = 0.05
-          ), error = function(e) { message("    Outlier test error: ", e$message); NULL }
-        )
-        if (!is.null(presso_full)) {
-          outlier_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue, error = function(e) NULL)
-          n_outliers <- if (!is.null(outlier_p)) sum(outlier_p < 0.05, na.rm = TRUE) else 0
-          main_full <- tryCatch(presso_full[[1]]$`Main MR results`, error = function(e) NULL)
-          if (!is.null(main_full) && nrow(main_full) >= 2) causal_corrected <- main_full$`Causal Estimate`[2]
-          distortion_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
-        }
-      }
+#       n_outliers <- 0; causal_corrected <- NA; distortion_p <- NA
+#       if (!is.na(global_p) && global_p < 0.05) {
+#         message("    Global test significant -- running outlier detection...")
+#         presso_full <- tryCatch(
+#           mr_presso(
+#             BetaOutcome = "beta.outcome", BetaExposure = "beta.exposure",
+#             SdOutcome = "se.outcome", SdExposure = "se.exposure",
+#             data = as.data.frame(harm_keep),
+#             OUTLIERtest = TRUE, DISTORTIONtest = TRUE,
+#             NbDistribution = 10000, SignifThreshold = 0.05
+#           ), error = function(e) { message("    Outlier test error: ", e$message); NULL }
+#         )
+#         if (!is.null(presso_full)) {
+#           outlier_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Outlier Test`$Pvalue, error = function(e) NULL)
+#           n_outliers <- if (!is.null(outlier_p)) sum(outlier_p < 0.05, na.rm = TRUE) else 0
+#           main_full <- tryCatch(presso_full[[1]]$`Main MR results`, error = function(e) NULL)
+#           if (!is.null(main_full) && nrow(main_full) >= 2) causal_corrected <- main_full$`Causal Estimate`[2]
+#           distortion_p <- tryCatch(presso_full[[1]]$`MR-PRESSO results`$`Distortion Test`$Pvalue, error = function(e) NA)
+#         }
+#       }
 
-      presso_results <- c(presso_results, list(data.frame(
-        pgs_id = pgs_id, subtype = subtype,
-        global_p = global_p, n_outliers = n_outliers,
-        causal_raw = causal_raw, causal_corrected = causal_corrected,
-        distortion_p = distortion_p
-      )))
-      message("    Global p = ", global_p, ", outliers = ", n_outliers)
-    }, error = function(e) {
-      message("    Failed: ", e$message)
-    })
-  }
+#       presso_results <- c(presso_results, list(data.frame(
+#         pgs_id = pgs_id, subtype = subtype,
+#         global_p = global_p, n_outliers = n_outliers,
+#         causal_raw = causal_raw, causal_corrected = causal_corrected,
+#         distortion_p = distortion_p
+#       )))
+#       message("    Global p = ", global_p, ", outliers = ", n_outliers)
+#     }, error = function(e) {
+#       message("    Failed: ", e$message)
+#     })
+#   }
 
-  if (length(presso_results) > 0) {
-    presso_df <- bind_rows(presso_results)
-    fwrite(presso_df, file.path(OUTPUT_DIR, "forward_mrpresso.tsv"), sep = "\t")
-    message("\n  Saved: forward_mrpresso.tsv")
-  }
-} else {
-  message("  No forward MR results to test")
-}
+#   if (length(presso_results) > 0) {
+#     presso_df <- bind_rows(presso_results)
+#     fwrite(presso_df, file.path(OUTPUT_DIR, "forward_mrpresso.tsv"), sep = "\t")
+#     message("\n  Saved: forward_mrpresso.tsv")
+#   }
+# } else {
+#   message("  No forward MR results to test")
+# }
+
 
 # =============================================================================
 # STEP 6: Summary plots
