@@ -490,7 +490,7 @@ if (!is.null(fwd$mr) && !is.null(rev$mr)) {
 
 
   # Write-protect result files to signal completion
-  result_files <- list.files(OUTPUT_DIR, pattern = "\.tsv$", full.names = TRUE)
+  result_files <- list.files(OUTPUT_DIR, pattern = "\\.tsv$", full.names = TRUE)
   for (rf in result_files) Sys.chmod(rf, mode = "0444")
   message("  Write-protected ", length(result_files), " result files")
 
