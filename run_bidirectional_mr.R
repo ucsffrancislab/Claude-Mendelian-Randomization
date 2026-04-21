@@ -262,6 +262,38 @@ for (i in seq_along(GLIOMA_SUBTYPES)) {
 message("  Loaded ", length(glioma_outcomes), " glioma subtypes\n")
 
 # =============================================================================
+
+# =============================================================================
+# CHECKPOINT: Skip Steps 2-4 if results already exist
+# =============================================================================
+
+.fwd_file <- file.path(OUTPUT_DIR, "forward_mr_results.tsv")
+.rev_file <- file.path(OUTPUT_DIR, "reverse_mr_results.tsv")
+.skip_analysis <- file.exists(.fwd_file) && file.info(.fwd_file)$size > 0 &&
+                  file.exists(.rev_file) && file.info(.rev_file)$size > 0
+
+if (.skip_analysis) {
+  message("\n=== CHECKPOINT: Result files found — skipping Steps 2-4 ===")
+  message("  Forward: ", .fwd_file)
+  message("  Reverse: ", .rev_file)
+  message("  To force rerun, delete these files or use a different --output-dir\n")
+
+  # Load existing results so Steps 6-7 (plots + summary) can run
+  fwd <- list(
+    mr      = tryCatch(fread(file.path(OUTPUT_DIR, "forward_mr_results.tsv")), error = function(e) NULL),
+    het     = tryCatch(fread(file.path(OUTPUT_DIR, "forward_heterogeneity.tsv")), error = function(e) NULL),
+    pleio   = tryCatch(fread(file.path(OUTPUT_DIR, "forward_pleiotropy.tsv")), error = function(e) NULL),
+    steiger = tryCatch(fread(file.path(OUTPUT_DIR, "forward_steiger.tsv")), error = function(e) NULL)
+  )
+  rev <- list(
+    mr    = tryCatch(fread(file.path(OUTPUT_DIR, "reverse_mr_results.tsv")), error = function(e) NULL),
+    het   = tryCatch(fread(file.path(OUTPUT_DIR, "reverse_heterogeneity.tsv")), error = function(e) NULL),
+    pleio = tryCatch(fread(file.path(OUTPUT_DIR, "reverse_pleiotropy.tsv")), error = function(e) NULL)
+  )
+  message("  Loaded results from disk for plotting/summary")
+
+} else {
+
 # STEP 2: Forward MR — ICVF (exposure) → Glioma (outcome) [PARALLEL]
 # =============================================================================
 
@@ -455,6 +487,14 @@ if (!is.null(fwd$mr) && !is.null(rev$mr)) {
   combined <- bind_rows(fwd$mr, rev$mr)
   fwrite(combined, file.path(OUTPUT_DIR, "combined_mr_results.tsv"), sep = "\t")
 }
+
+
+  # Write-protect result files to signal completion
+  result_files <- list.files(OUTPUT_DIR, pattern = "\.tsv$", full.names = TRUE)
+  for (rf in result_files) Sys.chmod(rf, mode = "0444")
+  message("  Write-protected ", length(result_files), " result files")
+
+}  # end of if (!.skip_analysis)
 
 # =============================================================================
 # STEP 5: MR-PRESSO (sequential — does not work in forked processes)
